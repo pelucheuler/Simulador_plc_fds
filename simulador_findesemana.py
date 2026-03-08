@@ -33,7 +33,7 @@ def app():
     if 'historial_decisiones' not in st.session_state: st.session_state.historial_decisiones = []
     if 'eventos_resueltos' not in st.session_state: st.session_state.eventos_resueltos = []
 
-    # Las 20 Decisiones de Control y Producción para la Simulación SCADA
+    # Base de datos de las 20 Decisiones SCADA
     LISTA_EVENTOS = [
         {"id": 1, "min_sim": 10, "tema": "Sensores (Nivel)", "titulo": "Discrepancia de Nivel", "desc": "El PLC marca nivel bajo en Metanol, pero el operario ve el tanque al 80%.", "opciones": ["a) Recalibrar el sensor ultrasónico / radar.", "b) Forzar la variable a 80% desde el software del PLC.", "c) Apagar la planta y cambiar el PLC."], "correcta": "a", "img": "evento_01.jpg"},
         {"id": 2, "min_sim": 30, "tema": "Lazos de Control", "titulo": "Oscilación Térmica", "desc": "La temperatura del reactor fluctúa entre 50°C y 70°C con un control ON/OFF. La calidad baja.", "opciones": ["a) Dejarlo así, el ON/OFF es suficiente.", "b) Cambiar a un Lazo Cerrado con control PID.", "c) Instalar un calentador más grande."], "correcta": "b", "img": "evento_02.jpg"},
@@ -65,11 +65,11 @@ def app():
         return segundos_reales, minutos_simulados
 
     # ==========================================
-    # FASE 0: CUESTIONARIO DE INGRESO (CERTIFICACIÓN)
+    # FASE 0: CUESTIONARIO DE INGRESO
     # ==========================================
     if st.session_state.fase == 0:
         st.title("📝 Fase 0: Certificación de Automatización")
-        st.info("Para acceder al SCADA interactivo, el equipo debe demostrar sus conocimientos teóricos.")
+        st.info("Para acceder al Cuarto de Control SCADA, el equipo debe demostrar sus conocimientos teóricos primero.")
         
         with st.form("form_cuestionario"):
             st.subheader("Examen de Ingreso al Cuarto de Control")
@@ -162,25 +162,30 @@ def app():
                         st.error(f"❌ Reprobado. Puntaje: {puntaje}/10. Mínimo requerido: 8/10. Repasen la teoría.")
 
     # ==========================================
-    # FASE 1: INGENIERÍA Y SETUP DE PLANTA
+    # FASE 1: SETUP PRODUCCIÓN GENERAL
     # ==========================================
     elif st.session_state.fase == 1:
-        st.title("🏭 Fase 1: Ingeniería y Setup de Planta Biodiesel")
-        st.info("Configuración del SCADA Central. Ingrese los datos de la empresa.")
+        st.title("🏭 Fase 1: Setup del Cuarto de Control")
+        st.info("Configuración del SCADA Central. Ingrese los datos de su equipo de trabajo.")
         
         with st.form("form_setup"):
             st.subheader("Datos Gerenciales del Turno")
             col_e1, col_e2 = st.columns(2)
-            empresa = col_e1.text_input("Nombre del Equipo / Grupo de Ingeniería:")
+            empresa = col_e1.text_input("Nombre del Equipo / Firma de Ingeniería:")
             jefe_turno = col_e2.text_input("Gerente de Producción (Aprendiz):")
             
             st.subheader("Selección de Tecnologías de Automatización")
+            st.write("Seleccione los elementos base a integrar en su panel SCADA:")
             c1, c2, c3 = st.columns(3)
-            eq_reactor = c1.checkbox("Reactor CSTR con Lazo Cerrado de Temperatura (PID)", value=True)
-            eq_bomba = c2.checkbox("Bomba de Trasiego con Variador de Frecuencia (VFD)")
-            eq_sensor = c3.checkbox("Sensores de Nivel Ultrasónico/Radar")
+            eq_reactor = c1.checkbox("Controladores PID (Lazos Cerrados)", value=True)
+            eq_bomba = c2.checkbox("Variadores de Frecuencia (VFD) en motores")
+            eq_sensor = c3.checkbox("Instrumentación y Sensores Inteligentes")
             
-            normativa = st.selectbox("Normativa de Calidad Objetivo:", ["ASTM D6751 / EN 14214", "Resolución Nacional Colombiana", "Producción Artesanal"])
+            normativa = st.selectbox("Estándar de Producción Objetivo:", [
+                "ISO 9001 (Gestión de Calidad Total)", 
+                "Normativa Nacional de Manufactura", 
+                "Producción Estándar (Sin certificación)"
+            ])
             
             if st.form_submit_button("✅ Inicializar SCADA e Iniciar Producción (60 Minutos)"):
                 if empresa and jefe_turno:
@@ -193,10 +198,10 @@ def app():
                     st.session_state.fase = 2
                     st.rerun()
                 else:
-                    st.error("⚠️ Ingrese el Nombre del Equipo y el Gerente.")
+                    st.error("⚠️ Ingrese el Nombre del Equipo y el Gerente para continuar.")
 
     # ==========================================
-    # FASE 2: SIMULACIÓN SCADA ACTIVA (FALLAS Y EVENTOS)
+    # FASE 2: SIMULACIÓN SCADA ACTIVA
     # ==========================================
     elif st.session_state.fase == 2:
         seg_reales, min_simulados = calcular_tiempo()
@@ -209,7 +214,6 @@ def app():
         delta_segundos = (ahora - st.session_state.ultima_actualizacion).total_seconds()
         st.session_state.ultima_actualizacion = ahora
         
-        # PROCESO DE PRODUCCIÓN
         if st.session_state.estado_plc == "🟢 RUN" and st.session_state.evento_actual is None:
             consumo_aceite_seg = 3.5 
             consumo_metanol_seg = 0.8
@@ -223,7 +227,6 @@ def app():
         else:
             st.session_state.tiempo_inactivo_seg += delta_segundos
 
-        # LÓGICA DE DISPARO DE LAS 20 FALLAS
         if st.session_state.evento_actual is None and st.session_state.estado_plc == "🟢 RUN":
             for evento in LISTA_EVENTOS:
                 if evento["id"] not in st.session_state.eventos_resueltos:
@@ -232,14 +235,13 @@ def app():
                         st.session_state.estado_plc = "🔴 FAULT (Pausa)"
                         st.rerun()
 
-        # ENCABEZADO
         c_head1, c_head2 = st.columns([2, 1])
-        c_head1.title(f"🖥️ SCADA Central | Empresa: {st.session_state.datos_planta['Empresa']}")
+        c_head1.title(f"🖥️ SCADA Central | Planta: {st.session_state.datos_planta['Empresa']}")
         
         tiempo_restante = max(0, 3600 - seg_reales)
         mins_rest = int(tiempo_restante // 60)
         segs_rest = int(tiempo_restante % 60)
-        c_head2.error(f"⏱️ **TIEMPO REAL RESTANTE: {mins_rest:02d}:{segs_rest:02d}**")
+        c_head2.error(f"⏱️ **TIEMPO REAL RESTANTE (Turno): {mins_rest:02d}:{segs_rest:02d}**")
 
         horas_sim = min_simulados / 60.0
         st.progress(min(1.0, horas_sim / 8.0), text=f"Jornada Laboral (8 Hrs Simuladas): {horas_sim:.1f} hrs completadas")
@@ -247,88 +249,105 @@ def app():
 
         col_izq, col_der = st.columns([1, 1.2])
 
-        # COLUMNA IZQUIERDA (CÁMARAS Y TANQUES)
+        # === COLUMNA IZQUIERDA CON RUTAS ABSOLUTAS (A PRUEBA DE FALLOS) ===
         with col_izq:
-            st.subheader("📹 Monitoreo Visual Reactivo")
+            st.subheader("📹 Monitoreo Visual en Tiempo Real")
+            
+            # Obtener la ruta del archivo actual como punto de referencia
+            ruta_base = os.path.dirname(os.path.abspath(__file__))
             
             if st.session_state.evento_actual is None:
-                if os.path.exists("planta_activa.mp4"):
-                    st.video("planta_activa.mp4", autoplay=True, loop=True, muted=True)
-                elif os.path.exists("planta_activa.gif"):
-                    st.image("planta_activa.gif", use_container_width=True)
+                # Armar la ruta para el video
+                ruta_video = os.path.join(ruta_base, "video_scada.mp4")
+                
+                if os.path.exists(ruta_video):
+                    st.video(ruta_video, autoplay=True, loop=True, muted=True)
+                elif os.path.exists("video_scada.mp4"):
+                    st.video("video_scada.mp4", autoplay=True, loop=True, muted=True)
                 else:
-                    st.info("🎥 Planta Activa (Funcionando correctamente).")
+                    st.error(f"❌ Video no encontrado. La aplicación lo está buscando en: {ruta_video}")
             else:
+                # Armar la ruta para las imágenes
                 imagen_evento = st.session_state.evento_actual['img']
-                if os.path.exists(imagen_evento):
+                ruta_img = os.path.join(ruta_base, imagen_evento)
+                
+                if os.path.exists(ruta_img):
+                    st.image(ruta_img, use_container_width=True)
+                elif os.path.exists(imagen_evento):
                     st.image(imagen_evento, use_container_width=True)
                 else:
-                    st.warning(f"⚠️ Atención Requerida: Falla en {st.session_state.evento_actual['tema']}")
+                    st.warning(f"⚠️ Atención Requerida: Falla técnica en {st.session_state.evento_actual['tema']}. (Imagen '{imagen_evento}' no disponible en la carpeta)")
 
-            st.subheader("🎚️ Control de Inventario (Tanques)")
+            st.subheader("🎚️ Control de Inventario (Niveles)")
             pct_aceite = max(0.0, min(100.0, (st.session_state.aceite_lts / 20000) * 100))
-            st.write(f"🛢️ Aceite Vegetal ({st.session_state.aceite_lts:,.0f} L)")
+            st.write(f"🛢️ Materia Prima 1 ({st.session_state.aceite_lts:,.0f} L)")
             st.progress(pct_aceite / 100.0)
             
             pct_metanol = max(0.0, min(100.0, (st.session_state.metanol_lts / 5000) * 100))
-            st.write(f"🧪 Metanol ({st.session_state.metanol_lts:,.0f} L)")
+            st.write(f"🧪 Materia Prima 2 ({st.session_state.metanol_lts:,.0f} L)")
             st.progress(pct_metanol / 100.0)
             
             pct_bio = min(100.0, (st.session_state.biodiesel_prod / 25000) * 100)
-            st.write(f"🟢 Biodiesel ({st.session_state.biodiesel_prod:,.0f} L)")
+            st.write(f"🟢 Producto Terminado ({st.session_state.biodiesel_prod:,.0f} L)")
             st.progress(pct_bio / 100.0)
 
-        # COLUMNA DERECHA (INDICADORES Y PREGUNTAS)
         with col_der:
             st.subheader("📊 Indicadores de Desempeño (KPIs)")
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Estado PLC", st.session_state.estado_plc)
-            c2.metric("Utilidad", f"${st.session_state.utilidad_cop:,.0f} COP")
-            c3.metric("Downtime", f"{(st.session_state.tiempo_inactivo_seg/60):.1f} min")
-            c4.metric("Calidad Lote", f"{st.session_state.calidad_lote}%")
+            c2.metric("Utilidad COP", f"${st.session_state.utilidad_cop:,.0f}")
+            c3.metric("Downtime Min", f"{(st.session_state.tiempo_inactivo_seg/60):.1f} min reales")
+            c4.metric("Índice Calidad", f"{st.session_state.calidad_lote}%")
             
             st.markdown("---")
             
             if st.session_state.evento_actual:
                 ev = st.session_state.evento_actual
-                st.markdown(f"<div class='pregunta-box'><b>🚨 EVENTO SCADA: {ev['titulo']}</b><br><br>{ev['desc']}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='pregunta-box'><b>🚨 ALERTA SCADA: {ev['titulo']}</b><br><br>{ev['desc']}</div>", unsafe_allow_html=True)
                 
                 with st.form("form_decision"):
-                    respuesta_usuario = st.radio("Seleccione la instrucción a enviar:", ev['opciones'])
+                    st.write(f"**Área Evaluada:** {ev['tema']} (Instrumentación y Control)")
+                    respuesta_usuario = st.radio("Seleccione la instrucción ejecutiva a enviar al SCADA:", ev['opciones'], index=None)
                     
                     if st.form_submit_button("✅ Confirmar Orden Ejecutiva"):
-                        es_correcta = respuesta_usuario.startswith(ev['correcta'])
-                        if es_correcta:
-                            st.success("Correcto.")
-                            st.session_state.calidad_lote = min(100.0, st.session_state.calidad_lote + 1.0)
+                        if respuesta_usuario is None:
+                            st.warning("⚠️ Seleccione una opción para confirmar.")
                         else:
-                            st.error("Error de control.")
-                            st.session_state.calidad_lote -= 5.0
-                            st.session_state.utilidad_cop -= 500000
-                        
-                        st.session_state.historial_decisiones.append({
-                            "Minuto_Simulado": round(min_simulados, 1),
-                            "Tema": ev['tema'],
-                            "Falla": ev['titulo'],
-                            "Decision": respuesta_usuario,
-                            "Correcta": "SI" if es_correcta else "NO"
-                        })
-                        st.session_state.eventos_resueltos.append(ev['id'])
-                        st.session_state.evento_actual = None
-                        st.session_state.estado_plc = "🟢 RUN"
-                        st.rerun()
+                            es_correcta = respuesta_usuario.startswith(ev['correcta'])
+                            
+                            if es_correcta:
+                                st.success("Correcto. El lazo de control se ha estabilizado.")
+                                st.session_state.calidad_lote = min(100.0, st.session_state.calidad_lote + 1.0)
+                            else:
+                                st.error("Error de control industrial. Se han generado pérdidas técnicas.")
+                                st.session_state.calidad_lote -= 5.0 
+                                st.session_state.utilidad_cop -= 500000 
+                            
+                            st.session_state.historial_decisiones.append({
+                                "Minuto_Simulado": round(min_simulados, 1),
+                                "Tema": ev['tema'],
+                                "Falla": ev['titulo'],
+                                "Decision": respuesta_usuario,
+                                "Correcta": "SI" if es_correcta else "NO"
+                            })
+                            
+                            st.session_state.eventos_resueltos.append(ev['id'])
+                            st.session_state.evento_actual = None 
+                            st.session_state.estado_plc = "🟢 RUN"
+                            st.rerun() 
             else:
-                st.success("✅ **SISTEMA AUTOMATIZADO ESTABLE.**")
+                st.success("✅ **SISTEMA AUTOMATIZADO ESTABLE.** El controlador PID opera dentro de los parámetros normativos.")
+                st.info("Visualizando datos en tiempo real... Preparando siguiente bloque de lógica.")
 
-        if st.session_state.estado_plc == "🟢 RUN" and st.session_state.evento_actual is None:
-            time.sleep(1.0)
-            st.rerun()
+    if st.session_state.estado_plc == "🟢 RUN" and st.session_state.evento_actual is None:
+        time.sleep(1.0)
+        st.rerun()
 
     # ==========================================
     # FASE 3: DESCARGA DE REPORTES
     # ==========================================
     elif st.session_state.fase == 3:
-        st.success("🏁 ¡Turno Finalizado!")
+        st.success("🏁 ¡Turno Finalizado! Se detiene el ciclo de producción controlado.")
         st.header(f"📑 Entrega de Turno: {st.session_state.datos_planta.get('Empresa', 'Grupo')}")
         
         if len(st.session_state.historial_decisiones) > 0:
@@ -341,30 +360,38 @@ def app():
         total_preguntas = len(st.session_state.eventos_resueltos)
         
         datos_prod = {
+            "Fecha": datetime.now().strftime("%Y-%m-%d %H:%M"),
             "Empresa": st.session_state.datos_planta.get('Empresa', 'N/A'),
-            "Biodiesel_Producido_Lts": round(st.session_state.biodiesel_prod, 1),
-            "Utilidad_Generada_COP": st.session_state.utilidad_cop,
-            "Índice_Calidad_Final": f"{st.session_state.calidad_lote}%",
-            "Eficiencia_Automatizacion_Aciertos": f"{aciertos} / 20"
+            "Gerente": st.session_state.datos_planta.get('Gerente', 'N/A'),
+            "Normativa": st.session_state.datos_planta.get('Normativa', 'N/A'),
+            "Produccion_Total_Lts": round(st.session_state.biodiesel_prod, 1),
+            "Utilidad_COP": st.session_state.utilidad_cop,
+            "Downtime_Min": round(st.session_state.tiempo_inactivo_seg / 60, 2),
+            "Índice_Calidad": f"{st.session_state.calidad_lote}%",
+            "Eficiencia_Aciertos": f"{aciertos} / 20"
         }
         df_prod = pd.DataFrame([datos_prod])
         csv_prod = df_prod.to_csv(index=False).encode('utf-8')
 
         c_res1, c_res2, c_res3 = st.columns(3)
         c_res1.metric("Utilidad Generada (COP)", f"${st.session_state.utilidad_cop:,.0f}")
-        c_res2.metric("Índice de Calidad Final", f"{st.session_state.calidad_lote}%")
-        c_res3.metric("Aciertos Automatización", f"{aciertos} / {total_preguntas}")
+        c_res2.metric("Índice Calidad Final", f"{st.session_state.calidad_lote}%")
+        c_res3.metric("Automatización (Aciertos)", f"{aciertos} / {total_preguntas}")
 
         st.markdown("---")
         c_d1, c_d2 = st.columns(2)
         with c_d1:
-            st.download_button("1. Descargar Decisiones (.csv)", data=csv_decisiones, file_name="Decisiones.csv", mime='text/csv')
+            st.download_button("1. Descargar Reporte Decisiones (.csv)", data=csv_decisiones, file_name="Decisiones.csv", mime='text/csv')
         with c_d2:
             st.download_button("2. Descargar KPI Producción (.csv)", data=csv_prod, file_name="KPI_Produccion.csv", mime='text/csv')
             
-        if st.button("Reiniciar Simulador"):
+        st.divider()
+        if st.button("Reiniciar Simulador para otro Grupo"):
             st.session_state.clear()
             st.rerun()
 
+# Si ejecutas este archivo directamente (no desde un menú), arrancará la app:
 if __name__ == "__main__":
+    # st.set_page_config debe ser la primera llamada de streamlit, la sacamos del app()
+    st.set_page_config(page_title="SCADA SENA", layout="wide")
     app()
